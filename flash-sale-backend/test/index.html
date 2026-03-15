@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Flash Sale Tester</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
+    input, button { padding: 8px 12px; margin: 4px; font-size: 14px; }
+    button { cursor: pointer; background: #000; color: #fff; border: none; border-radius: 4px; }
+    button.secondary { background: #fff; color: #000; border: 1px solid #000; }
+    pre { background: #f4f4f4; padding: 12px; border-radius: 4px; font-size: 13px; overflow-x: auto; }
+    .success { color: green; font-weight: bold; }
+    .error { color: red; font-weight: bold; }
+    .section { border: 1px solid #ddd; padding: 16px; margin-bottom: 16px; border-radius: 8px; }
+    h3 { margin-top: 0; }
+    label { font-size: 13px; color: #555; display: block; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+  <h2>Flash Sale — Backend Tester</h2>
+
+  <!-- SEED -->
+  <div class="section">
+    <h3>1. Seed Inventory</h3>
+    <label>Product ID</label>
+    <input id="seed-product" value="axiom-003" />
+    <label>Quantity</label>
+    <input id="seed-qty" type="number" value="10" style="width:80px" />
+    <br/>
+    <button onclick="seedInventory()">Seed Inventory</button>
+    <pre id="seed-result">—</pre>
+  </div>
+
+  <!-- INVENTORY -->
+  <div class="section">
+    <h3>2. Check Inventory</h3>
+    <label>Product ID</label>
+    <input id="inv-product" value="axiom-003" />
+    <br/>
+    <button onclick="checkInventory()">Check Stock</button>
+    <pre id="inv-result">—</pre>
+  </div>
+
+  <!-- CHECKOUT -->
+  <div class="section">
+    <h3>3. Checkout</h3>
+    <label>User ID</label>
+    <input id="buy-user" value="user-1" />
+    <label>Product ID</label>
+    <input id="buy-product" value="axiom-003" />
+    <label>Size</label>
+    <input id="buy-size" value="9" style="width:80px" />
+    <br/>
+    <button onclick="checkout()">Buy Now</button>
+    <pre id="buy-result">—</pre>
+  </div>
+
+  <!-- SPAM TEST -->
+  <div class="section">
+    <h3>4. Spam Test — 20 users at once</h3>
+    <label>Product ID</label>
+    <input id="spam-product" value="axiom-003" />
+    <label>How many users</label>
+    <input id="spam-count" type="number" value="20" style="width:80px" />
+    <br/>
+    <button onclick="spamTest()">Fire!</button>
+    <pre id="spam-result">—</pre>
+  </div>
+
+  <!-- DEBUG -->
+  <div class="section">
+    <h3>5. Debug — see everything in memory</h3>
+    <button onclick="debug()">Show Debug</button>
+    <button class="secondary" onclick="document.getElementById('debug-result').textContent='—'">Clear</button>
+    <pre id="debug-result">—</pre>
+  </div>
+
+<script>
+  const BASE = 'http://localhost:3001/api';
+
+  async function post(url, body) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    return res.json();
+  }
+
+  async function get(url) {
+    const res = await fetch(url);
+    return res.json();
+  }
+
+  function show(id, data) {
+    const el = document.getElementById(id);
+    el.textContent = JSON.stringify(data, null, 2);
+    el.className = data.status === 'success' ? 'success' : 
+                   data.status === 'sold_out' ? 'error' : '';
+  }
+
+  async function seedInventory() {
+    const data = await post(`${BASE}/seed-inventory`, {
+      productId: document.getElementById('seed-product').value,
+      quantity: parseInt(document.getElementById('seed-qty').value)
+    });
+    show('seed-result', data);
+  }
+
+  async function checkInventory() {
+    const productId = document.getElementById('inv-product').value;
+    const data = await get(`${BASE}/inventory/${productId}`);
+    show('inv-result', data);
+  }
+
+  async function checkout() {
+    const data = await post(`${BASE}/checkout`, {
+      userId: document.getElementById('buy-user').value,
+      productId: document.getElementById('buy-product').value,
+      size: document.getElementById('buy-size').value
+    });
+    show('buy-result', data);
+  }
+
+  async function spamTest() {
+    const productId = document.getElementById('spam-product').value;
+    const count = parseInt(document.getElementById('spam-count').value);
+    const el = document.getElementById('spam-result');
+    el.textContent = 'Firing...';
+
+    const promises = Array.from({ length: count }, (_, i) =>
+      post(`${BASE}/checkout`, {
+        userId: `stress-user-${i}`,
+        productId,
+        size: '9'
+      })
+    );
+
+    const results = await Promise.all(promises);
+    const success = results.filter(r => r.status === 'success').length;
+    const soldOut = results.filter(r => r.status === 'sold_out').length;
+    const rejected = results.filter(r => r.status === 'rejected').length;
+
+    el.textContent = `Total fired: ${count}
+✅ Success:  ${success}
+❌ Sold out: ${soldOut}
+⚠️  Rejected: ${rejected}
+
+Full results:
+${JSON.stringify(results, null, 2)}`;
+  }
+
+  async function debug() {
+    const data = await get(`${BASE}/debug`);
+    document.getElementById('debug-result').textContent = JSON.stringify(data, null, 2);
+  }
+</script>
+
+</body>
+</html>

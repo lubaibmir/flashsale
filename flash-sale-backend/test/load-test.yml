@@ -1,0 +1,16 @@
+config:
+  target: "http://localhost:3001"
+  phases:
+    - duration: 5
+      arrivalRate: 50
+      name: "Stampede simulation"
+
+scenarios:
+  - name: "Concurrent checkout"
+    flow:
+      - post:
+          url: "/api/checkout"
+          json:
+            userId: "user-{{ $randomNumber(1, 500) }}"
+            productId: "axiom-003"
+            size: "9"
